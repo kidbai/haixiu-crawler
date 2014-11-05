@@ -4,96 +4,140 @@ var superagent = require('superagent');
 var cheerio = require('cheerio');
 var app = express();
 
-var url = require('url');
+var shyUrl = 'http://www.douban.com/group/haixiuzu/discussion?start=0';
 
-var pageNum = 0;
-var count = 0;
-var maxNum = 10;
-var offset = 25;
-var shyUrl = 'http://www.douban.com/group/haixiuzu/discussion?start=';
-
-var ep = eventproxy();
 var async = require('async');
 var excutetimes = 0;
-var getShyUrl = function(shyUrl){
-    console.log(excutetimes++);
-    superagent.get(shyUrl)
+
+var itemInfo = []; // href、authorUrl的信息
+var hrefs = [];
+var authorUrls = [];
+var contentInfo = []; //存储title、imgs
+var authorInfo = []; //存储author、location
+var concurrencyCount = 0;
+var concurrencyCount2 = 0;
+var resultContent = [];
+var resultAuthor = [];
+var resultAll = [];
+var getShyUrl = function(shyUrl, res, callback){
+    superagent
+    .get(shyUrl)
+    .set({'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2202.3 Safari/537.36'})
     .end(function (err, sres) {
         if(err){
             return console.error(err);
         }
-        var topicInfo = [];
-        var authorInfo = [];
-        var $ = cheerio.load(sres.text);
+        console.log(excutetimes++ + 'excutetimes');
         // res.send(sres.text);
-
-        $('.title a').each(function (idx, element){
-            topicInfo.push({
-                title: $(element).attr('title'),
-                href: $(element).attr('href')
-            });
-        });
-        $("td[nowrap=nowrap] a").each(function (idx, element){
-            authorInfo.push({
-                author: $(element).text(),
-                authorUrls: $(element).attr('href')
-            });
-        });
-        console.log(topicInfo);
-        console.log(authorInfo);
         var authorUrlsList = [];
-        authorUrlsList = authorInfo.map(function (infoItem){
-            return infoItem.authorUrls;
+        var $ = cheerio.load(sres.text);
+        var jishu = 0; 
+        $('.olt tr .title').each(function (idx, element){
+            jishu++;
+            itemInfo.push({
+                href: $(element).children('a').attr('href'),
+                authorUrl: $(element).siblings('td[nowrap=nowrap]').children('a').attr('href')
+            })
+            
         });
-        console.log(authorUrlsList);
+        hrefs = itemInfo.map(function (item){
+            return item.href;
+        });
+        authorUrls = itemInfo.map(function (item){
+            return item.authorUrl;
+        });
+        console.log(hrefs);
 
+        
+        var getLocation = function(url, callback){
+            superagent.get(url)
+            .end(function (err, sres){
+                if(err){
+                    console.error(err);
+                }
+                var $ = cheerio.load(sres.text);
+                authorInfo.push({
+                    author: $('.name').text().trim(),
+                    location: $('.loc').text().trim()
+                });
+                console.log(authorInfo);
+                console.log(authorInfo.length + 'authorInfo');
+            });
+            var delay = parseInt(2000);
+            concurrencyCount2++;
+            console.log('现在的并发数是', concurrencyCount2, '，正在抓取的是', url, '，耗时' + delay + '毫秒');
+
+            setTimeout(function () {
+                concurrencyCount2--;
+                callback(null, authorInfo);
+            }, delay); 
+        }
 
         //抓取作者信息
-        var concurrencyCount = 0;
-        var fetchAuthorLocation = function(url, callback) {
-            var delay = parseInt((Math.random() * 10000000) % 2000, 10);
+        async.mapLimit(authorUrls, 2, function (url, callback){
+            getLocation(url, callback);
+        }, function (err, result) {
+            if(err){
+                console.error(err);
+            }
+            console.log('final');
+            console.log(result[0]);
+            // resultContent.concat(result[0]);
+            
+        });
+
+        var getPicture = function(url, callback){
+
+            var imgs = [];
+            superagent.get(url)
+            .end(function (err, sres){
+                if(err){
+                    console.error(err);
+                }
+                var $ = cheerio.load(sres.text);
+                $(".topic-figure img").each(function (idx, element){
+                    imgs.push('http://img3.douban.com/view/group_topic/large/public/' + $(element).attr("src"));
+                    console.log($(element).attr("src"));
+                });
+                contentInfo.push({
+                    title: $("h1").text().trim(),
+                    imgs: imgs
+                    })
+                console.log(contentInfo);
+                console.log(contentInfo.length + 'contentInfo');
+            });
+
+            var delay = parseInt(2000);
             concurrencyCount++;
             console.log('现在的并发数是', concurrencyCount, '，正在抓取的是', url, '，耗时' + delay + '毫秒');
 
-            var author = [];
-            superagent.get(url)
-                .end(function (err, sres){
-                    if(err){
-                        return console.error(err);
-                    }
-                    // res.send(sres.text);
-                    var $ = cheerio.load(sres.text);
-                    author.push({
-                        name: $('.name').text().trim(),
-                        location: $('.loc').text().trim()
-                    });
-                });
             setTimeout(function () {
                 concurrencyCount--;
-                callback(null, author);
+                callback(null, contentInfo);
             }, delay);
-        };
-        //抓取作者信息
-        async.mapLimit(authorUrlsList, 3, function (url, callback) {
-            fetchAuthorLocation(url, callback);
+
+        }
+
+        //抓取title.imgs
+        async.mapLimit(hrefs, 2, function (url, callback) {
+            getPicture(url, callback);
             }, function (err, result) {
                 if(err){
                     return console.error(err);
                 }
                 console.log('final:');
-                console.log(result);
+                console.log(result[0]);
+                console.log(result.length + 'result');
+                res.send(result[0]);
+                // resultAuthor.concat(result[0]);
             });
 
+        
     });
 }
 
 app.get('/', function (req, res, next) {
-    for(count = 0; count < maxNum; count++)
-    {
-        pageNum = count * offset;
-        console.log(pageNum);
-        getShyUrl(shyUrl + pageNum);
-    } 
+        getShyUrl(shyUrl, res);
 });
 
 app.listen(3000, function(){
