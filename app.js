@@ -40,13 +40,20 @@ var getShyUrl = function(shyUrl, res, callback){
             })
             
         });
+        var c1 = 0;
         hrefs = itemInfo.map(function (item){
+            c1++;
+            console.log(c1);
+            console.log(item.href);
             return item.href;
         });
+        var c2 = 0;
         authorUrls = itemInfo.map(function (item){
+            c2++;
+            console.log(c2);
+            console.log(item.authorUrl);
             return item.authorUrl;
         });
-        console.log(hrefs);
 
         
         var getLocation = function(url, callback){
@@ -82,7 +89,7 @@ var getShyUrl = function(shyUrl, res, callback){
             }
             console.log('final');
             console.log(result[0]);
-            // resultContent.concat(result[0]);
+            resultAuthor = resultAuthor.concat(result[0]);
             
         });
 
@@ -96,15 +103,15 @@ var getShyUrl = function(shyUrl, res, callback){
                 }
                 var $ = cheerio.load(sres.text);
                 $(".topic-figure img").each(function (idx, element){
-                    imgs.push('http://img3.douban.com/view/group_topic/large/public/' + $(element).attr("src"));
-                    console.log($(element).attr("src"));
+                    imgs.push($(element).attr("src"));
+                    // console.log($(element).attr("src"));
                 });
                 contentInfo.push({
                     title: $("h1").text().trim(),
                     imgs: imgs
                     })
-                console.log(contentInfo);
-                console.log(contentInfo.length + 'contentInfo');
+                // console.log(contentInfo);
+                // console.log(contentInfo.length + 'contentInfo');
             });
 
             var delay = parseInt(2000);
@@ -125,19 +132,35 @@ var getShyUrl = function(shyUrl, res, callback){
                 if(err){
                     return console.error(err);
                 }
-                console.log('final:');
-                console.log(result[0]);
-                console.log(result.length + 'result');
+                // console.log('final:');
+                // console.log(result[0]);
+                // console.log(result.length + 'result');
                 res.send(result[0]);
-                // resultAuthor.concat(result[0]);
+                resultContent = resultContent.concat(result[0]);
             });
-
+        
         
     });
 }
 
 app.get('/', function (req, res, next) {
         getShyUrl(shyUrl, res);
+        setTimeout(function (){
+            var maxNum = hrefs.length;
+            for(var i = 0; i < hrefs.length; i++)
+            {
+                resultAll.push({
+                    title: resultContent[i]['title'],
+                    img: resultContent[i]['imgs'],
+                    href: hrefs[i],
+                    author_href: authorUrls[i],
+                    author_name: resultAuthor[i]['author'],
+                    author_location: resultAuthor[i]['location']
+                });
+            }
+            res.send(resultAll[0]);
+            
+        },30000);
 });
 
 app.listen(3000, function(){
