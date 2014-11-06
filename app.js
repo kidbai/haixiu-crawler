@@ -3,7 +3,13 @@ var eventproxy = require('eventproxy');
 var superagent = require('superagent');
 var cheerio = require('cheerio');
 var app = express();
-
+var mysql = require('mysql');
+var conn = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: 'yang',
+    database: 'node_crawler'
+});
 var shyUrl = 'http://www.douban.com/group/haixiuzu/discussion?start=0';
 
 var async = require('async');
@@ -43,8 +49,8 @@ var getShyUrl = function(shyUrl, res, callback){
         var c1 = 0;
         hrefs = itemInfo.map(function (item){
             c1++;
-            console.log(c1);
-            console.log(item.href);
+            // console.log(c1);
+            // console.log(item.href);
             return item.href;
         });
         var c2 = 0;
@@ -57,18 +63,18 @@ var getShyUrl = function(shyUrl, res, callback){
 
         
         var getLocation = function(url, callback){
+            var data = {};
             superagent.get(url)
             .end(function (err, sres){
                 if(err){
                     console.error(err);
                 }
                 var $ = cheerio.load(sres.text);
-                authorInfo.push({
-                    author: $('.name').text().trim(),
-                    location: $('.loc').text().trim()
-                });
-                console.log(authorInfo);
-                console.log(authorInfo.length + 'authorInfo');
+                
+                data['author_name'] = $('.name').text().trim();
+                data['location'] = $('.loc').text().replace(/\n|\s|常居:/ig, '');
+                // console.log(authorInfo);
+                // console.log(authorInfo.length + 'authorInfo');
             });
             var delay = parseInt(2000);
             concurrencyCount2++;
@@ -76,42 +82,42 @@ var getShyUrl = function(shyUrl, res, callback){
 
             setTimeout(function () {
                 concurrencyCount2--;
-                callback(null, authorInfo);
+                callback(null, data);
             }, delay); 
         }
 
         //抓取作者信息
-        async.mapLimit(authorUrls, 2, function (url, callback){
+        async.mapLimit(authorUrls, 1, function (url, callback){
             getLocation(url, callback);
         }, function (err, result) {
             if(err){
                 console.error(err);
             }
-            console.log('final');
-            console.log(result[0]);
-            resultAuthor = resultAuthor.concat(result[0]);
+            // console.log('final');
+            // console.log(result[0]);
+            resultAuthor = resultAuthor.concat(result);
+            // res.send(result);
             
         });
 
         var getPicture = function(url, callback){
 
             var imgs = [];
-            superagent.get(url)
+            var data = {};
+            superagent.get(url) //判断第一个是否抓完，否者排序有误
             .end(function (err, sres){
                 if(err){
                     console.error(err);
                 }
                 var $ = cheerio.load(sres.text);
                 $(".topic-figure img").each(function (idx, element){
-                    imgs.push($(element).attr("src"));
-                    // console.log($(element).attr("src"));
+                    src = $(element).attr("src")
+                    imgs.push(src);
+                    console.log(imgs);
                 });
-                contentInfo.push({
-                    title: $("h1").text().trim(),
-                    imgs: imgs
-                    })
-                // console.log(contentInfo);
-                // console.log(contentInfo.length + 'contentInfo');
+                data['title'] = $('h1').text().trim();
+                data['imgs'] = imgs;
+               
             });
 
             var delay = parseInt(2000);
@@ -120,13 +126,13 @@ var getShyUrl = function(shyUrl, res, callback){
 
             setTimeout(function () {
                 concurrencyCount--;
-                callback(null, contentInfo);
+                callback(null, data);
             }, delay);
 
         }
 
         //抓取title.imgs
-        async.mapLimit(hrefs, 2, function (url, callback) {
+        async.mapLimit(hrefs, 1, function (url, callback) {
             getPicture(url, callback);
             }, function (err, result) {
                 if(err){
@@ -135,8 +141,8 @@ var getShyUrl = function(shyUrl, res, callback){
                 // console.log('final:');
                 // console.log(result[0]);
                 // console.log(result.length + 'result');
-                res.send(result[0]);
-                resultContent = resultContent.concat(result[0]);
+                resultContent = resultContent.concat(result);
+                // res.send(result);
             });
         
         
@@ -154,13 +160,48 @@ app.get('/', function (req, res, next) {
                     img: resultContent[i]['imgs'],
                     href: hrefs[i],
                     author_href: authorUrls[i],
-                    author_name: resultAuthor[i]['author'],
+                    author_name: resultAuthor[i]['author_name'],
                     author_location: resultAuthor[i]['location']
                 });
             }
-            res.send(resultAll[0]);
+            res.send(resultAll);
+            var notExist = false;
+            resultAll.forEach(function (item){
+                conn.query('select * from tbl_post', function (err, results){
+                    if(err){
+                        console.error(err);
+                    }
+                    notExist = true;
+                    results.forEach(function (sqlItem){
+                        sqlItem['info'] = JSON.parse(sqlItem['info']);
+                        
+                        if(sqlItem['info']['title'] == item['title'])
+                        {
+                            console.log(sqlItem);     
+                            notExist = false;
+                        }
+                       
+
+                    });
+                    if(notExist)
+                    {
+                        console.log(item);
+                        item = JSON.stringify(item);
+                        conn.query('insert into tbl_post SET info = ?', item, function (err, results){
+                            if(err){
+                                console.error(err);
+                            }
+                            else
+                            {
+                                console.log('success');
+                            }
+                        });
+                    }
+
+                }); //查看数据库中是否有这个字段;
+            });
             
-        },30000);
+        },60000);
 });
 
 app.listen(3000, function(){
