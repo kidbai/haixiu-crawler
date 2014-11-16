@@ -2,7 +2,12 @@ var express = require('express');
 var eventproxy = require('eventproxy');
 var superagent = require('superagent');
 var cheerio = require('cheerio');
+var cookieParser = require('cookie-parser');
+
 var app = express();
+app.use(cookieParser());
+
+//链接数据库
 var mysql = require('mysql');
 var conn = mysql.createConnection({
     host: 'localhost',
@@ -10,11 +15,12 @@ var conn = mysql.createConnection({
     password: 'yang',
     database: 'node_crawler'
 });
+
 var shyUrl = 'http://www.douban.com/group/haixiuzu/discussion?start=0';
 
 var async = require('async');
-var excutetimes = 0;
 
+var excutetimes = 0;
 var itemInfo = []; // href、authorUrl的信息
 var hrefs = [];
 var authorUrls = [];
@@ -25,7 +31,7 @@ var concurrencyCount2 = 0;
 var resultContent = [];
 var resultAuthor = [];
 var resultAll = [];
-var getShyUrl = function(shyUrl, res, callback){
+var getShyUrl = function(shyUrl, res){
     superagent
     .get(shyUrl)
     .set({'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2202.3 Safari/537.36'})
@@ -56,10 +62,9 @@ var getShyUrl = function(shyUrl, res, callback){
         var c2 = 0;
         authorUrls = itemInfo.map(function (item){
             c2++;
-            console.log(c2);
-            console.log(item.authorUrl);
             return item.authorUrl;
         });
+        // console.log(hrefs);
 
         
         var getLocation = function(url, callback){
@@ -78,7 +83,7 @@ var getShyUrl = function(shyUrl, res, callback){
             });
             var delay = parseInt(2000);
             concurrencyCount2++;
-            console.log('现在的并发数是', concurrencyCount2, '，正在抓取的是', url, '，耗时' + delay + '毫秒');
+            console.log('getauthor现在的并发数是', concurrencyCount2, '，正在抓取的是', url, '，耗时' + delay + '毫秒');
 
             setTimeout(function () {
                 concurrencyCount2--;
@@ -101,10 +106,11 @@ var getShyUrl = function(shyUrl, res, callback){
         });
 
         var getPicture = function(url, callback){
+            console.log('handle:' + url);
 
             var imgs = [];
             var data = {};
-            superagent.get(url) //判断第一个是否抓完，否者排序有误
+            superagent.get(url) 
             .end(function (err, sres){
                 if(err){
                     console.error(err);
@@ -113,7 +119,7 @@ var getShyUrl = function(shyUrl, res, callback){
                 $(".topic-figure img").each(function (idx, element){
                     src = $(element).attr("src")
                     imgs.push(src);
-                    console.log(imgs);
+                    // console.log(imgs);
                 });
                 data['title'] = $('h1').text().trim();
                 data['imgs'] = imgs;
@@ -122,7 +128,7 @@ var getShyUrl = function(shyUrl, res, callback){
 
             var delay = parseInt(2000);
             concurrencyCount++;
-            console.log('现在的并发数是', concurrencyCount, '，正在抓取的是', url, '，耗时' + delay + '毫秒');
+            console.log('getpicture现在的并发数是', concurrencyCount, '，正在抓取的是', url, '，耗时' + delay + '毫秒');
 
             setTimeout(function () {
                 concurrencyCount--;
@@ -133,6 +139,7 @@ var getShyUrl = function(shyUrl, res, callback){
 
         //抓取title.imgs
         async.mapLimit(hrefs, 1, function (url, callback) {
+            console.log('enter url:' + url);
             getPicture(url, callback);
             }, function (err, result) {
                 if(err){
@@ -142,7 +149,6 @@ var getShyUrl = function(shyUrl, res, callback){
                 // console.log(result[0]);
                 // console.log(result.length + 'result');
                 resultContent = resultContent.concat(result);
-                // res.send(result);
             });
         
         
