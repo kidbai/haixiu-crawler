@@ -3,12 +3,33 @@ var superagent = require('superagent');
 var cheerio = require('cheerio');
 
 var mysql = require('mysql');
-var conn = mysql.createConnection({
+
+var db_config = ({
     host: 'us-cdbr-iron-east-01.cleardb.net',
     user: 'b875511a83fee8',
     password: '4428b7df',
     database: 'heroku_28ce897a21c469d'
 });
+
+function handleError()
+{
+    var conn = mysql.createConnection(db_config);
+    conn.connect(function (err){
+        if(err){
+            console.error(err);
+            setTimeout(handleError, 2000);
+        }
+    });
+    conn.on('error', function (err) {
+        console.log('db error', err);
+        // 如果是连接断开，自动重新连接
+        if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+            handleError();
+        } else {
+            throw err;
+        }
+    });
+}
 
 var express = require('express');
 var app = express();
@@ -20,7 +41,7 @@ var resultContent = [];
 app.set('port', (process.env.PORT || 3000));
 
 app.get('/', function (req, res){
-
+        handleError();
         async.auto({
         getUrl: function (getUrlCallback){
             superagent
