@@ -4,10 +4,10 @@ var cheerio = require('cheerio');
 
 var mysql = require('mysql');
 var conn = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'yang',
-    database: 'node_crawler'
+    host: 'us-cdbr-iron-east-01.cleardb.net',
+    user: 'b875511a83fee8',
+    password: '4428b7df',
+    database: 'heroku_28ce897a21c469d'
 });
 
 var express = require('express');
@@ -17,7 +17,7 @@ var concurrencyCount2 = 0;
 var resultContent = [];
 
 
-
+app.set('port', (process.env.PORT || 3000));
 
 app.get('/', function (req, res){
 
@@ -172,7 +172,7 @@ app.get('/', function (req, res){
             var notExist = false;
             allInfo.forEach(function (item){
 
-                conn.query('select * from tbl_post_new', function (err, results){
+                conn.query('select * from tbl_post', function (err, results){
                     
                     if(err){
                         console.error(err);
@@ -189,7 +189,7 @@ app.get('/', function (req, res){
                     {
                         console.log('notExist');
                         console.log(item);
-                        conn.query('insert into tbl_post_new SET ?', item, function (err, results){
+                        conn.query('insert into tbl_post SET ?', item, function (err, results){
                             if(err){
                                 console.error(err);
                             }
@@ -214,6 +214,7 @@ app.get('/', function (req, res){
     });
 });
 
-app.listen(3000, function(){
-    console.log('listen 3000');
+var port = process.env.PORT || 3000;
+app.listen(port, function(){
+    console.log('listen port:' + port);
 });
