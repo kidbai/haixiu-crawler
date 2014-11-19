@@ -232,7 +232,7 @@ app.get('/', function (req, res){
             }
             console.log(results);
         });
-    }, 300000); 
+    }, 240000); 
 });
 
 var port = process.env.PORT || 3000;
