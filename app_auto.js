@@ -10,10 +10,10 @@ var db_config = ({
     password: '4428b7df',
     database: 'heroku_28ce897a21c469d'
 });
-
+var conn;
 function handleError()
 {
-    var conn = mysql.createConnection(db_config);
+    conn = mysql.createConnection(db_config);
     conn.connect(function (err){
         if(err){
             console.error(err);
