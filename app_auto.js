@@ -37,7 +37,6 @@ var concurrencyCount = 0;
 var concurrencyCount2 = 0;
 var resultContent = [];
 
-
 app.set('port', (process.env.PORT || 3000));
 
 app.get('/', function (req, res){
@@ -105,7 +104,7 @@ app.get('/', function (req, res){
                 }
 
                 //抓取title.imgs
-                async.mapLimit(titleImgUrl, 1, function (url, callback) {
+                async.mapLimit(titleImgUrl, 2, function (url, callback) {
                     console.log('enter url:' + url);
                     getPicture(url, callback);
                     }, function (err, result) {
@@ -150,24 +149,17 @@ app.get('/', function (req, res){
                 }
 
                 //抓取作者信息
-                async.mapLimit(authorLocationUrl, 1, function (url, callback){
+                async.mapLimit(authorLocationUrl, 2, function (url, callback){
                     getLocation(url, callback);
                 }, function (err, result) {
                     if(err){
                         console.error(err);
                     }
-                    // console.log('final');
-                    // console.log(result[0]);
-                    // resultAuthor = resultAuthor.concat(result);
-                    // res.send(result);
                     getAuthorLocationCallback(null, result);
                     
                 });
             }],
             save: ['getTitleImgData', 'getAuthorLocation', 'getUrl', function (callback, results){
-                console.log(results.getTitleImgData);
-                console.log(results.getAuthorLocation);
-                console.log(results.getUrl);
                 var allInfo = [];
                 var length = results.getTitleImgData.length;
                 console.log('length:' + length);
@@ -230,9 +222,9 @@ app.get('/', function (req, res){
             if(err){
                 console.error(err);
             }
-            console.log(results);
+            res.send(results);
         });
-    }, 240000); 
+    }, 300000); 
 });
 
 var port = process.env.PORT || 3000;
